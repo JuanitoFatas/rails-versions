@@ -26,4 +26,5 @@ See the [CONTRIBUTING][contribute] file.
 
 ## LICENSE
 
-Please see [UNLICENSE](/UNLICENSE).
+- bin/update: [MIT LICENSE](http://choosealicense.com/licenses/mit/)
+- `rails/*`: [CC0 1.0 Universal](https://creativecommons.org/publicdomain/zero/1.0/)
