@@ -32,7 +32,7 @@ class LatestMajorsFinder
 end
 
 rails_info = RubyGemClient.get_rails_info
-sha256s = rails_info.map { |info| %(#{info["sha"]}  #{info["number"]}) }
+sha256s = rails_info.reverse.map { |info| %(#{info["sha"]}  #{info["number"]}) }
 sorted_versions = VersionSorter.sort rails_info.map { |info| info["number"] }
 latest_majors = LatestMajorsFinder.new(sorted_versions).call
 last_stables = latest_majors.last(2)
