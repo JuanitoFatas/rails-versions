@@ -5,21 +5,6 @@ Signal.trap("INT") { abort }
 
 require "http"
 require "version_sorter"
-require "versionomy"
-
-class VersionComparator
-  def initialize(v1)
-    @v1 = v1
-  end
-
-  def less_than?(v2)
-    Gem::Version.new(v1) < Gem::Version.new(v2)
-  end
-
-  private
-
-    attr_reader :v1
-end
 
 class RubyGemClient
   ENDPOINT = "https://rubygems.org/api/v1/versions/rails.json"
@@ -29,53 +14,46 @@ class RubyGemClient
   end
 end
 
-# Find last 2 stable
-class StablesFinder
-  def initialize(reversely_sorted_versions)
-    @reversely_sorted_versions = reversely_sorted_versions
+# Find all latest version of major releases
+class LatestMajorsFinder
+  def initialize(sorted_versions)
+    @sorted_versions = sorted_versions
   end
 
   def call
-    [last_stable, latest]
+    sorted_versions.group_by do |version|
+      version.split(".")[0..1].join
+    end.map { |lead, versions| VersionSorter.sort(versions).last }
   end
 
   private
 
-    attr_reader :reversely_sorted_versions
-
-    def last_stable
-      reversely_sorted_versions[1..-1].find do |possible|
-        possible[0] < latest[0] &&
-        VersionComparator.new(possible).less_than?(latest) &&
-        stable_release?(Versionomy.parse(possible).release_type)
-      end
-    end
-
-    def latest
-      @_latest ||= reversely_sorted_versions.first
-    end
-
-    def stable_release?(release_type)
-      ![:alpha, :beta, :release_candidate, :preview, :development].include?(release_type)
-    end
+    attr_reader :sorted_versions
 end
 
 rails_info = RubyGemClient.get_rails_info
 sha256s = rails_info.map { |info| %(#{info["sha"]}  #{info["number"]}) }
 sorted_versions = VersionSorter.sort rails_info.map { |info| info["number"] }
-last_stables = StablesFinder.new(sorted_versions.reverse).call
+latest_majors = LatestMajorsFinder.new(sorted_versions).call
+last_stables = latest_majors.last(2)
 
 project_root = `git rev-parse --show-toplevel`.rstrip!
 versions_path = File.join project_root, "rails", "versions.txt"
 checksums_path = File.join project_root, "rails", "checksums.sha256"
 stable_path = File.join project_root, "rails", "stable.txt"
+latest_majors_path = File.join project_root, "rails", "latest_majors.txt"
 
 puts "Rails versions (yanked excluded): #{sorted_versions.size}."
+
 IO.write versions_path, sorted_versions.join("\n")
 IO.write checksums_path, sha256s.join("\n")
 puts "Updated rails/versions.txt."
 puts "Updated rails/checksums.sha256."
 
+puts "Rails latest major versions: #{latest_majors.join(", ")}."
+IO.write latest_majors_path, latest_majors.join("\n")
+
 puts "Rails stable versions: #{last_stables.join(", ")}."
 IO.write stable_path, last_stables.join("\n")
+
 puts "Updated rails/stable.txt."
