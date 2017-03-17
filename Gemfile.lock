@@ -16,12 +16,14 @@ GEM
     unf (0.1.4)
       unf_ext
     unf_ext (0.0.7.2)
+    version_sorter (2.1.0)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
   http
+  version_sorter
 
 BUNDLED WITH
-   1.12.5
+   1.13.6
