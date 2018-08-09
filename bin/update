@@ -5,6 +5,7 @@ Signal.trap("INT") { abort }
 
 require "http"
 require "version_sorter"
+require_relative "../latest_majors_finder"
 
 class RubyGemClient
   ENDPOINT = "https://rubygems.org/api/v1/versions/rails.json"
@@ -12,22 +13,6 @@ class RubyGemClient
   def self.get_rails_info
     JSON.parse(HTTP.get(ENDPOINT))
   end
-end
-
-class LatestMajorsFinder
-  def initialize(sorted_versions)
-    @sorted_versions = sorted_versions
-  end
-
-  def call
-    sorted_versions.group_by do |version|
-      version.split(".")[0..1].join
-    end.map { |lead, versions| VersionSorter.sort(versions).last }
-  end
-
-  private
-
-  attr_reader :sorted_versions
 end
 
 class FileManager
