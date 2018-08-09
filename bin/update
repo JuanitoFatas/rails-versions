@@ -14,7 +14,6 @@ class RubyGemClient
   end
 end
 
-# Find all latest version of major releases
 class LatestMajorsFinder
   def initialize(sorted_versions)
     @sorted_versions = sorted_versions
@@ -28,32 +27,93 @@ class LatestMajorsFinder
 
   private
 
-    attr_reader :sorted_versions
+  attr_reader :sorted_versions
+end
+
+class FileManager
+  def self.versions_path
+    @_versions_path ||= File.join project_root, "rails", "versions.txt"
+  end
+
+  def self.checksums_path
+    @_checksums_path ||= File.join project_root, "rails", "checksums.sha256"
+  end
+
+  def self.stable_path
+    @_stable_path ||= File.join project_root, "rails", "stable.txt"
+  end
+
+  def self.latest_majors_path
+    @_latest_majors_path ||= File.join project_root, "rails", "latest_majors.txt"
+  end
+
+  def self.project_root
+    PROJECT_ROOT
+  end
+  private_class_method :project_root
+
+  PROJECT_ROOT = `git rev-parse --show-toplevel`.rstrip!
+  private_constant :PROJECT_ROOT
+end
+
+class Updater
+  def initialize(rails_info)
+    @rails_info = rails_info
+  end
+
+  def call
+    puts "Rails versions (yanked excluded): #{sorted_versions.size}."
+    update_versions
+    update_checksums
+    update_latest_majors
+    update_stables
+    puts "Update completed."
+  end
+
+  private
+
+  attr_reader :rails_info
+
+  def sha256s
+    @_sha256s ||= begin
+      rails_info.reverse.map { |info| %(#{info["sha"]}  #{info["number"]}) }
+    end
+  end
+
+  def sorted_versions
+    @_sorted_versions ||= begin
+      VersionSorter.sort rails_info.map { |info| info["number"] }
+    end
+  end
+
+  def latest_majors
+    @_latest_majors ||= begin
+      LatestMajorsFinder.new(sorted_versions).call
+    end
+  end
+
+  def last_stables
+    @_last_stables ||= latest_majors.last(2)
+  end
+
+  def update_versions
+    IO.write FileManager.versions_path, sorted_versions.join("\n")
+  end
+
+  def update_checksums
+    IO.write FileManager.checksums_path, sha256s.join("\n")
+  end
+
+  def update_latest_majors
+    puts "Rails latest major versions: #{latest_majors.join(", ")}."
+    IO.write FileManager.latest_majors_path, latest_majors.join("\n")
+  end
+
+  def update_stables
+    puts "Rails stable versions: #{last_stables.join(", ")}."
+    IO.write FileManager.stable_path, last_stables.join("\n")
+  end
 end
 
 rails_info = RubyGemClient.get_rails_info
-sha256s = rails_info.reverse.map { |info| %(#{info["sha"]}  #{info["number"]}) }
-sorted_versions = VersionSorter.sort rails_info.map { |info| info["number"] }
-latest_majors = LatestMajorsFinder.new(sorted_versions).call
-last_stables = latest_majors.last(2)
-
-project_root = `git rev-parse --show-toplevel`.rstrip!
-versions_path = File.join project_root, "rails", "versions.txt"
-checksums_path = File.join project_root, "rails", "checksums.sha256"
-stable_path = File.join project_root, "rails", "stable.txt"
-latest_majors_path = File.join project_root, "rails", "latest_majors.txt"
-
-puts "Rails versions (yanked excluded): #{sorted_versions.size}."
-
-IO.write versions_path, sorted_versions.join("\n")
-IO.write checksums_path, sha256s.join("\n")
-puts "Updated rails/versions.txt."
-puts "Updated rails/checksums.sha256."
-
-puts "Rails latest major versions: #{latest_majors.join(", ")}."
-IO.write latest_majors_path, latest_majors.join("\n")
-
-puts "Rails stable versions: #{last_stables.join(", ")}."
-IO.write stable_path, last_stables.join("\n")
-
-puts "Updated rails/stable.txt."
+Updater.new(rails_info).call
